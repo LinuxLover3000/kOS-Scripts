@@ -190,10 +190,10 @@ function get_burn_time {
     parameter ISP.
     parameter burn_deltav.
 
-    local exhaust_velocity is isp * g0.
+    local exhaust_velocity is ISP * g0.
 
     local mf is starting_mass / constant:e ^ (burn_deltav / exhaust_velocity).
-    local fuel_flow is ship:availablethrust / (ISP * g0).
+    local fuel_flow is ship:availablethrust / exhaust_velocity.
     local burn_length is (starting_mass - mf) / fuel_flow.
 
     return burn_length.
