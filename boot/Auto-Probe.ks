@@ -164,7 +164,7 @@ function execute_maneuver {
 
     local done is false.
     local starting_deltav is node:deltav:mag.
-    local burn_time is get_burn_time(ship:mass, isp, a_body, node:orbit:apoapsis, thrust, node:deltav:mag).
+    local burn_time is get_burn_time(ship:mass * 1000, isp, a_body, node:orbit:apoapsis, thrust, node:deltav:mag).
     lock steering to node:burnvector.
 
     print "Burn Time: " + burn_time.
@@ -200,7 +200,7 @@ function get_burn_time {
     local exponent is -1 * (burn_deltav / exhaust_velocity).
     local burn_length is coefficient * (1 - (constant:e ^ exponent)).
 
-    return burn_length / 288.3947368.
+    return burn_length.
 }
 
 function get_final_mass {
