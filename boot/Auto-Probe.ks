@@ -10,6 +10,8 @@ declare max_speed to 2100.
 
 declare landing_contition to "shid_fard".
 declare iterated to false.
+global g0 is 9.80665.
+global error_rate is 0.0001.
 
 set this_vessel to ship.
 
@@ -158,13 +160,12 @@ function stage_function {
 function execute_maneuver {
     parameter isp.
     parameter node.
-    parameter error_rate.
     parameter a_body.
     parameter thrust.
 
     local done is false.
     local starting_deltav is node:deltav:mag.
-    local burn_time is get_burn_time(ship:mass * 1000, isp, a_body, node:orbit:apoapsis, thrust, node:deltav:mag).
+    local burn_time is get_burn_time(ship:mass, get_isp(ship), node:deltav:mag).
     lock steering to node:burnvector.
 
     print "Burn Time: " + burn_time.
@@ -187,38 +188,22 @@ function execute_maneuver {
 function get_burn_time {
     parameter starting_mass.
     parameter ISP.
-    parameter this_body.
-    parameter orbit_radius.
-    parameter stage_thrust.
     parameter burn_deltav.
 
-    local gravity is get_gravity(this_body, this_body:radius + orbit_radius).
-    local exhaust_velocity is isp * gravity.
-    print gravity.
+    local exhaust_velocity is isp * g0.
 
-    local coefficient is (starting_mass * exhaust_velocity) / stage_thrust * 1000.
-    local exponent is -1 * (burn_deltav / exhaust_velocity).
-    local burn_length is coefficient * (1 - (constant:e ^ exponent)).
+    local mf is starting_mass / constant:e ^ (burn_deltav / exhaust_velocity).
+    local fuel_flow is ship:availablethrust / (ISP * g0).
+    local burn_length is (starting_mass - mf) / fuel_flow.
 
     return burn_length.
-}
-
-function get_final_mass {
-    parameter ship_mass.
-    parameter deltav.
-    parameter isp.
-    parameter g.
-
-    set exhaust_velocity to isp * g.
-
-    return ship_mass * (constant:e ^ (( -1 * deltav) / exhaust_velocity) ).
 }
 
 function circularize {
     wait 5.
     set circular_orbit_node to circularization_node(get_gravity(kerbin, kerbin:radius + apoapsis) , apoapsis + kerbin:radius).
     add circular_orbit_node.
-    execute_maneuver(get_isp(ship) , circular_orbit_node, 0.001, kerbin, get_max_thrust(ship, kerbin:radius + circular_orbit_node:orbit:apoapsis)).
+    execute_maneuver(get_isp(ship) , circular_orbit_node, kerbin, get_max_thrust(ship, kerbin:radius + circular_orbit_node:orbit:apoapsis)).
 }
 
 function finish {
