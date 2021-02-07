@@ -1,4 +1,5 @@
 # kOS-Scripts
 cum shit and cum
-blah blah
-1234
+poggers
+ram ranch
+from loop
