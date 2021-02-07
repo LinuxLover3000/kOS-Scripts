@@ -1,21 +1,18 @@
-declare desired_orbit_height to 500000.
-declare atmosphere_height to 50000.
+global current_condition is "null".
+global current_body is "kerbin".
 
-declare ship_roll to 90.
-declare ship_pitch to 0.
-declare ship_yaw to 90.
+global max_speed is 2100.
+global desired_orbit_height is 500000.
+global atmosphere_height is 50000.
+global inclanation is 90.
+global ship_pitch is 0.
+global throttle_value is 1.
 
-declare throttle_value to 1.
-declare max_speed to 2100.
-
-declare landing_contition to "shid_fard".
-declare iterated to false.
 global g0 is 9.80665.
 global error_rate is 0.0001.
 
-set this_vessel to ship.
-
 function main {
+
     lock current_gravity to get_gravity(kerbin, kerbin:radius + alt:radar).
     print current_gravity.
     launch().
@@ -25,8 +22,6 @@ function main {
 }
 
 function get_isp {
-    parameter a_vessel.
-
     local iterating is 0.
     local isp is 0.
 
@@ -42,7 +37,6 @@ function get_isp {
 }
 
 function get_max_thrust {
-    parameter a_vessel.
     parameter thrust_altitude.
 
     local thrust is 0.
@@ -58,17 +52,17 @@ function get_max_thrust {
 }
 
 function get_gravity {
-    parameter this_body.
+    parameter current_body.
     parameter radius.
 
-    return constant:g * (this_body:mass / radius ^ 2) .
+    return constant:g * (current_body:mass / radius ^ 2) .
 }
 
 function get_velocity_at_apoapsis {
     parameter this_ship.
     parameter apoapsis_time.
 
-    set m_time to timestamp(time:seconds + apoapsis_time).
+    local m_time is timestamp(time:seconds + apoapsis_time).
 
     return velocityat(this_ship, m_time):orbit:mag.
 }
@@ -77,26 +71,25 @@ function circularization_node {
     parameter gravity.
     parameter orbit_radius.
 
-    set pi_squared to constant:pi ^ 2.
-    set apoapsis_velocity to get_velocity_at_apoapsis(ship, ship:orbit:eta:apoapsis).
+    local pi_squared is constant:pi ^ 2.
+    local apoapsis_velocity is get_velocity_at_apoapsis(ship, ship:orbit:eta:apoapsis).
 
-    set orbital_period to sqrt((4 * pi_squared * orbit_radius) / gravity).
-    set orbital_circumference to (2 * constant:pi * orbit_radius).
-    set orbit_velocity to (orbital_circumference / orbital_period).
+    local orbital_period is sqrt((4 * pi_squared * orbit_radius) / gravity).
+    local orbital_circumference is (2 * constant:pi * orbit_radius).
+    local orbit_velocity is (orbital_circumference / orbital_period).
 
-    set deltav_for_node to orbit_velocity - apoapsis_velocity.
+    local deltav_for_node is orbit_velocity - apoapsis_velocity.
 
     return node(timespan(0, 0, 0, 0, eta:apoapsis), 0, 0, deltav_for_node).
 }
 
 function launch {
-
     config:suppressautopilot off.
     sas off.
     rcs off.
     clearscreen.
 
-    lock steering to north + r(ship_yaw, -1 * ship_pitch, ship_roll).
+    lock steering to heading(inclanation, ship_pitch).
     lock throttle to throttle_value.
 
     stage.
@@ -105,23 +98,23 @@ function launch {
 }
 
 function control_loop_launch {
+    local wait_time is 0.001.
 
-    if landing_contition = "land" {
+    if current_condition = "land" {
         print "Landing".
     }
 
-    until apoapsis >= desired_orbit_height or landing_contition = "land" {
+    until ship:apoapsis >= desired_orbit_height or current_condition = "land" {
         control_conditions().
-        wait 0.001.
-        print get_gravity(kerbin, kerbin:radius + alt:radar).
+        wait wait_time.
     }
     set throttle_value to 0.
 }
 
 function control_conditions {
     if alt:radar <= atmosphere_height{
-        set ship_pitch to 90 * (alt:radar / atmosphere_height).
-        set throttle_value to ((max_speed - this_vessel:velocity:surface:mag) / max_speed).
+        set ship_pitch to (alt:radar / atmosphere_height).
+        set throttle_value to ((max_speed - ship:velocity:surface:mag) / max_speed).
     } else if not iterated {
         set throttle_value to 0.
         rcs on.
@@ -131,7 +124,7 @@ function control_conditions {
         set throttle_value to 1.
     }
 
-    if (this_vessel:maxthrust = 0 and throttle_value > 0) or stage:deltav:current <= (1.1 * required_resources) {
+    if (ship:maxthrust = 0 and throttle_value > 0) or stage:deltav:current <= (1.1 * required_resources()) {
         if stage_function() {
             print "breaking".
         } else {
@@ -161,7 +154,6 @@ function execute_maneuver {
     parameter isp.
     parameter node.
     parameter a_body.
-    parameter thrust.
 
     local done is false.
     local starting_deltav is node:deltav:mag.
@@ -174,12 +166,7 @@ function execute_maneuver {
 
     set throttle_value to 1.
 
-    until done {
-        if node:deltav:mag <= starting_deltav * error_rate{
-            unlock steering.
-            set done to true.
-        }
-    }
+    wait burn_length.
 
     set throttle_value to 0.
     remove node.
@@ -203,7 +190,7 @@ function circularize {
     wait 5.
     set circular_orbit_node to circularization_node(get_gravity(kerbin, kerbin:radius + apoapsis) , apoapsis + kerbin:radius).
     add circular_orbit_node.
-    execute_maneuver(get_isp(ship) , circular_orbit_node, kerbin, get_max_thrust(ship, kerbin:radius + circular_orbit_node:orbit:apoapsis)).
+    execute_maneuver(get_isp(ship) , circular_orbit_node, kerbin).
 }
 
 function finish {
