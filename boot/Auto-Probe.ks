@@ -113,6 +113,8 @@ function control_conditions {
     if alt:radar <= atmosphere_height{
         set ship_pitch to 90 - ((alt:radar * 90) / (atmosphere_height)).
         set throttle_value to ((max_speed - ship:velocity:surface:mag) / max_speed).
+        print "Prograde: " + prograde.
+        print "Retrograde: " + retrograde.
     } else if iterated = false{
         set throttle_value to 0.
         rcs on.
