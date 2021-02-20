@@ -1,5 +1,10 @@
 global current_condition is "null".
 global current_body is "kerbin".
+set exit_condition to list("space", "circularize").
+global first_stage_land_file is "First_Stage_Land.ks".
+global script_path is "0:Related_scripts/".
+
+global iterated is false.
 
 global max_speed is 2100.
 global desired_orbit_height is 500000.
@@ -12,13 +17,9 @@ global g0 is 9.80665.
 global error_rate is 0.0001.
 
 function main {
-
-    lock current_gravity to get_gravity(kerbin, kerbin:radius + alt:radar).
-    print current_gravity.
     launch().
     control_loop_launch().
-    circularize().
-    finish().
+    finish().   
 }
 
 function get_isp {
@@ -87,6 +88,7 @@ function launch {
     config:suppressautopilot off.
     sas off.
     rcs off.
+    toggle ag1.
     clearscreen.
 
     lock steering to heading(inclanation, ship_pitch).
@@ -100,11 +102,7 @@ function launch {
 function control_loop_launch {
     local wait_time is 0.001.
 
-    if current_condition = "land" {
-        print "Landing".
-    }
-
-    until ship:apoapsis >= desired_orbit_height or current_condition = "land" {
+    until ship:apoapsis >= desired_orbit_height or exit_condition[0] = "land" {
         control_conditions().
         wait wait_time.
     }
@@ -113,14 +111,15 @@ function control_loop_launch {
 
 function control_conditions {
     if alt:radar <= atmosphere_height{
-        set ship_pitch to (alt:radar / atmosphere_height).
+        set ship_pitch to 90 - ((alt:radar * 90) / (atmosphere_height)).
         set throttle_value to ((max_speed - ship:velocity:surface:mag) / max_speed).
-    } else if not iterated {
+    } else if iterated = false{
         set throttle_value to 0.
         rcs on.
+        ag4 on.
         set iterated to true.
     } else {
-        set ship_pitch to 90.
+        set ship_pitch to 0.
         set throttle_value to 1.
     }
 
@@ -133,6 +132,20 @@ function control_conditions {
     }
 }
 
+function part_checker {
+    parameter a_vessel.
+    parameter return_condition.
+
+    local ship_parts is a_vessel:rootpart:alltaggedparts().
+
+    for part in ship_parts {
+        if part:tag = return_condition{
+            return true.
+        }
+    }
+    return false.
+}
+
 function stage_function {
     set throttle_value to 0.
     wait 1.
@@ -142,12 +155,9 @@ function stage_function {
     wait until stage:ready.
     set this_vessel to ship.
 
-    //if this_vessel:partsdubbed("Landing Script"):exist  and not this_vessel:partsdubbed("Launch Script"):exist {
-        //set landing_contition to "land".
-        //return true.
-    //} else {
-        //return false.
-    //}
+    if part_checker(ship, "Landing Script") and not part_checker(ship, "Space Script") {
+        set exit_condition to list("land", "first_stage").
+    }
 }
 
 function execute_maneuver {
@@ -157,8 +167,8 @@ function execute_maneuver {
 
     local done is false.
     local starting_deltav is node:deltav:mag.
-    local burn_time is get_burn_time(ship:mass, get_isp(ship), node:deltav:mag).
-    lock steering to node:burnvector.
+    local burn_time is get_burn_time(ship:mass, get_isp(), node:deltav:mag).
+    set steering to node:burnvector.
 
     print "Burn Time: " + burn_time.
 
@@ -166,7 +176,7 @@ function execute_maneuver {
 
     set throttle_value to 1.
 
-    wait burn_length.
+    wait burn_time.
 
     set throttle_value to 0.
     remove node.
@@ -190,21 +200,41 @@ function circularize {
     wait 5.
     set circular_orbit_node to circularization_node(get_gravity(kerbin, kerbin:radius + apoapsis) , apoapsis + kerbin:radius).
     add circular_orbit_node.
-    execute_maneuver(get_isp(ship) , circular_orbit_node, kerbin).
+    execute_maneuver(get_isp() , circular_orbit_node, kerbin).
 }
 
 function finish {
-    set throttle_value to 0.
-    wait 100.
-    ag4 on.
-    lock steering to retrograde.
-    wait until steering = retrograde.
+    if exit_condition[0] = "land" {
+        if exit_condition[1] = "first_stage" {
+            runpath(script_path + first_stage_land_file).
+        } else {
+            print "script not found".
+        }
+        shutdown.
+    }
+    if exit_condition[0] = "space" {
+        if exit_condition[1] = "circularize" {
+            circularize().
+            deorbit().
+            shutdown.
+        }
+        else {
+            print "exit condition not found".
+        }
+    }
+}
+
+function deorbit {
+    ag9 on.
+    rcs on.
+
+     wait 5.
+    set steering to retrograde.
+    wait 30.
     set throttle_value to 1.
-    wait until periapsis <= 0.
+     wait until periapsis <= 0.
     set throttle_value to 0.
-    print "  ".
-    print "circularized and finishing.".
-    shutdown.
+    print "deorbiting".
 }
 
 function required_resources {
